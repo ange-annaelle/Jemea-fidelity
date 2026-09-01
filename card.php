@@ -1,6 +1,7 @@
 <?php
 // card.php
 require_once 'config/database.php';
+require_once 'includes/fidelity-rules.php';
 
 $phone = isset($_GET['phone']) ? trim(htmlspecialchars($_GET['phone'])) : '';
 $customer = null;
@@ -21,16 +22,20 @@ if (!empty($phone)) {
 
 // Extraction des données si le client est trouvé
 if ($customer) {
+    // Purge les crédits expirés (12 mois glissants) avant d'afficher quoi que ce soit
+    $savings_balance = refreshCustomerBalance($pdo, $customer['id']);
+    $total_purchases = (float)$customer['total_purchases'];
+    $tier = getTier($total_purchases);
+
     $fullname = $customer['fullname'];
     $matricule = "JM-" . str_pad($customer['id'], 4, "0", STR_PAD_LEFT);
-    $points = (int)$customer['points_balance']; 
-    $display_points = min($points, 10);
 }
 ?>
 
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ma Carte Jemea Loyalty 3D</title>
@@ -118,26 +123,30 @@ if ($customer) {
                             <div class="card-middle-row mb-2">
                                 <div>
                                     <div class="card-owner-name text-truncate" style="max-width: 320px;"><?php echo $fullname; ?></div>
-                                    <span class="small text-white-50"><i class="fa-solid fa-star text-warning me-1"></i> Membre Privilège</span>
+                                    <span class="small text-white-50"><i class="fa-solid fa-star text-warning me-1"></i> Palier <?php echo $tier['name']; ?></span>
                                 </div>
                                 <div class="text-white-50 opacity-50"><i class="fa-solid fa-rotate-y fa-lg"></i></div>
                             </div>
 
                             <div>
                                 <div class="d-flex justify-content-between align-items-center mb-1 small text-white-50" style="font-size: 0.75rem;">
-                                    <span>Progression Fidélité</span>
-                                    <span><strong><?php echo $points; ?></strong> / 10 Points</span>
+                                    <span>Solde épargne</span>
+                                    <span><strong><?php echo number_format($savings_balance, 0, ',', ' '); ?></strong> FCFA</span>
                                 </div>
-                                
-                                <div class="stamps-row">
-                                    <?php for($i = 1; $i <= 10; $i++): ?>
-                                        <?php if($i <= $display_points): ?>
-                                            <div class="stamp-slot checked"><i class="fa-solid fa-check" style="font-size: 0.6rem;"></i></div>
-                                        <?php else: ?>
-                                            <div class="stamp-slot"><?php echo $i; ?></div>
-                                        <?php endif; ?>
-                                    <?php endfor; ?>
-                                </div>
+
+                                <?php if ($tier['next_threshold']): ?>
+                                    <?php $tierProgress = min(($total_purchases / $tier['next_threshold']) * 100, 100); ?>
+                                    <div class="progress" style="height: 8px; border-radius: 6px; background: rgba(255,255,255,0.2);">
+                                        <div class="progress-bar bg-warning" role="progressbar" style="width: <?php echo $tierProgress; ?>%;"></div>
+                                    </div>
+                                    <div class="small text-white-50 mt-1" style="font-size: 0.7rem;">
+                                        <?php echo number_format($tier['next_threshold'] - $total_purchases, 0, ',', ' '); ?> FCFA d'achats avant le palier suivant
+                                    </div>
+                                <?php else: ?>
+                                    <div class="small text-warning mt-1" style="font-size: 0.75rem;">
+                                        <i class="fa-solid fa-crown me-1"></i> Palier maximum atteint — taux d'épargne 7%
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         </div>
 
@@ -183,6 +192,11 @@ if ($customer) {
             <div class="p-3 bg-light rounded-3 border">
                 <form action="actions/declare_purchase.php" method="POST">
                     <input type="hidden" name="customer_id" value="<?php echo $customer['id']; ?>">
+                    <input type="hidden" name="phone" value="<?php echo htmlspecialchars($phone); ?>">
+                    <div class="mb-3 text-start">
+                        <label class="small fw-bold text-secondary mb-1">Montant de votre achat (FCFA)</label>
+                        <input type="number" step="0.01" name="amount" class="form-control" placeholder="Ex: 5000" required>
+                    </div>
                     <div class="mb-2">
                         <span class="small text-muted d-block mb-1">Une notification sera envoyée instantanément à la caisse Jemea.</span>
                     </div>
@@ -207,56 +221,82 @@ if ($customer) {
 
                 <div class="perks-section">
                     <div class="bg-white p-4 rounded-4 shadow-sm border mb-4 text-center">
-                        <h5 class="fw-bold text-dark mb-3">Statut global de vos avantages</h5>
-                        <div class="progress mb-2" style="height: 12px; border-radius: 6px;">
-                            <div class="progress-bar" role="progressbar" 
-                                 style="width: <?php echo min(($points/10)*100, 100); ?>%; background-color: var(--jemea-green);" 
-                                 aria-valuenow="<?php echo $points; ?>" aria-valuemin="0" aria-valuemax="10"></div>
-                        </div>
-                        <p class="small text-muted mb-0">
-                            <?php if($points >= 10): ?>
-                                🎉 Félicitations ! Vous avez débloqué votre cadeau. Présentez votre carte au staff Jemea.
-                            <?php else: ?>
-                                Plus que <strong><?php echo (10 - $points); ?></strong> achats avant votre prochain pack ou produit offert !
-                            <?php endif; ?>
-                        </p>
+                        <h5 class="fw-bold text-dark mb-3">Votre palier : <?php echo $tier['name']; ?> (<?php echo $tier['rate']; ?>% d'épargne sur chaque achat)</h5>
+                        <?php if ($tier['next_threshold']): ?>
+                            <?php $tierProgress = min(($total_purchases / $tier['next_threshold']) * 100, 100); ?>
+                            <div class="progress mb-2" style="height: 12px; border-radius: 6px;">
+                                <div class="progress-bar" role="progressbar"
+                                     style="width: <?php echo $tierProgress; ?>%; background-color: var(--jemea-green);"></div>
+                            </div>
+                            <p class="small text-muted mb-0">
+                                Plus que <strong><?php echo number_format($tier['next_threshold'] - $total_purchases, 0, ',', ' '); ?> FCFA</strong>
+                                d'achats cumulés avant votre prochain palier.
+                            </p>
+                        <?php else: ?>
+                            <p class="small text-muted mb-0">🎉 Vous êtes au palier maximum, votre taux d'épargne restera à 7% sur tous vos achats.</p>
+                        <?php endif; ?>
                     </div>
 
-                    <h6 class="fw-bold text-secondary text-uppercase tracking-wider mb-3" style="font-size: 0.8rem;">Vos Cadeaux Disponibles</h6>
-                    <div class="d-flex flex-column gap-3">
-                        
-                        <div class="perk-item d-flex align-items-center justify-content-between shadow-sm <?php echo ($points >= 3) ? 'unlocked bg-light-subtle' : ''; ?>">
+                    <h6 class="fw-bold text-secondary text-uppercase tracking-wider mb-3" style="font-size: 0.8rem;">Les paliers du programme</h6>
+                    <div class="d-flex flex-column gap-3 mb-4">
+
+                        <div class="perk-item d-flex align-items-center justify-content-between shadow-sm <?php echo ($tier['name'] === 'Bronze') ? 'unlocked bg-light-subtle' : ''; ?>">
                             <div class="d-flex align-items-center gap-3">
-                                <div class="p-2 bg-warning-subtle text-warning rounded-3"><i class="fa-solid fa-mortar-pestle fa-lg"></i></div>
+                                <div class="p-2 bg-warning-subtle text-warning rounded-3"><i class="fa-solid fa-medal fa-lg"></i></div>
                                 <div>
-                                    <h6 class="fw-bold mb-0" style="font-size: 0.95rem;">Un sachet d'épices au choix</h6>
-                                    <span class="small text-muted">Débloqué à 3 points</span>
+                                    <h6 class="fw-bold mb-0" style="font-size: 0.95rem;">Bronze — 3% d'épargne</h6>
+                                    <span class="small text-muted">Dès votre premier achat</span>
                                 </div>
                             </div>
-                            <?php echo ($points >= 3) ? '<span class="badge bg-success text-white rounded-pill"><i class="fa-solid fa-circle-check"></i> Acquis</span>' : '<span class="badge bg-secondary text-white-50 rounded-pill">Verrouillé</span>'; ?>
+                            <?php echo ($tier['name'] === 'Bronze') ? '<span class="badge bg-success text-white rounded-pill"><i class="fa-solid fa-circle-check"></i> Actuel</span>' : ''; ?>
                         </div>
 
-                        <div class="perk-item d-flex align-items-center justify-content-between shadow-sm <?php echo ($points >= 7) ? 'unlocked bg-light-subtle' : ''; ?>">
+                        <div class="perk-item d-flex align-items-center justify-content-between shadow-sm <?php echo ($tier['name'] === 'Argent') ? 'unlocked bg-light-subtle' : ''; ?>">
                             <div class="d-flex align-items-center gap-3">
-                                <div class="p-2 bg-success-subtle text-success rounded-3"><i class="fa-solid fa-bottle-water fa-lg"></i></div>
+                                <div class="p-2 bg-secondary-subtle text-secondary rounded-3"><i class="fa-solid fa-medal fa-lg"></i></div>
                                 <div>
-                                    <h6 class="fw-bold mb-0" style="font-size: 0.95rem;">Un Pur Jus Ananas Curcuma offert</h6>
-                                    <span class="small text-muted">Débloqué à 7 points</span>
+                                    <h6 class="fw-bold mb-0" style="font-size: 0.95rem;">Argent — 5% d'épargne</h6>
+                                    <span class="small text-muted">Dès 100 000 FCFA d'achats cumulés</span>
                                 </div>
                             </div>
-                            <?php echo ($points >= 7) ? '<span class="badge bg-success text-white rounded-pill"><i class="fa-solid fa-circle-check"></i> Acquis</span>' : '<span class="badge bg-secondary text-white-50 rounded-pill">Verrouillé</span>'; ?>
+                            <?php echo ($tier['name'] === 'Argent') ? '<span class="badge bg-success text-white rounded-pill"><i class="fa-solid fa-circle-check"></i> Actuel</span>' : (($total_purchases >= 100000) ? '<span class="badge bg-success text-white rounded-pill"><i class="fa-solid fa-circle-check"></i> Acquis</span>' : '<span class="badge bg-secondary text-white-50 rounded-pill">Verrouillé</span>'); ?>
                         </div>
 
-                        <div class="perk-item d-flex align-items-center justify-content-between shadow-sm <?php echo ($points >= 10) ? 'unlocked bg-light-subtle' : ''; ?>">
+                        <div class="perk-item d-flex align-items-center justify-content-between shadow-sm <?php echo ($tier['name'] === 'Or') ? 'unlocked bg-light-subtle' : ''; ?>">
                             <div class="d-flex align-items-center gap-3">
-                                <div class="p-2 bg-info-subtle text-info rounded-3"><i class="fa-solid fa-jar fa-lg"></i></div>
+                                <div class="p-2 bg-info-subtle text-info rounded-3"><i class="fa-solid fa-crown fa-lg"></i></div>
                                 <div>
-                                    <h6 class="fw-bold mb-0" style="font-size: 0.95rem;">Le Grand Pot de Miel Blanc d'Oku</h6>
-                                    <span class="small text-muted">Débloqué à 10 points</span>
+                                    <h6 class="fw-bold mb-0" style="font-size: 0.95rem;">Or — 7% d'épargne</h6>
+                                    <span class="small text-muted">Dès 300 000 FCFA d'achats cumulés</span>
                                 </div>
                             </div>
-                            <?php echo ($points >= 10) ? '<span class="badge bg-success text-white rounded-pill"><i class="fa-solid fa-circle-check"></i> Acquis</span>' : '<span class="badge bg-secondary text-white-50 rounded-pill">Verrouillé</span>'; ?>
+                            <?php echo ($tier['name'] === 'Or') ? '<span class="badge bg-success text-white rounded-pill"><i class="fa-solid fa-circle-check"></i> Actuel</span>' : '<span class="badge bg-secondary text-white-50 rounded-pill">Verrouillé</span>'; ?>
                         </div>
+                    </div>
+
+                    <h6 class="fw-bold text-secondary text-uppercase tracking-wider mb-3" style="font-size: 0.8rem;">Boostez votre épargne</h6>
+                    <div class="bg-white p-4 rounded-4 shadow-sm border mb-4">
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                            <div class="p-2 bg-success-subtle text-success rounded-3"><i class="fa-solid fa-mobile-screen-button fa-lg"></i></div>
+                            <div>
+                                <h6 class="fw-bold mb-0" style="font-size: 0.95rem;">Dépôt volontaire Orange Money / MTN MoMo</h6>
+                                <span class="small text-muted">Alimentez votre solde même sans achat</span>
+                            </div>
+                        </div>
+                        <ul class="small text-muted mb-0 ps-3">
+                            <li>Moins de 20 000 FCFA déposés : bonus de <strong>3%</strong></li>
+                            <li>Entre 20 000 et 50 000 FCFA : bonus de <strong>5%</strong></li>
+                            <li>Plus de 50 000 FCFA : bonus de <strong>8%</strong></li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-4 shadow-sm border">
+                        <h6 class="fw-bold text-dark mb-2" style="font-size: 0.95rem;"><i class="fa-solid fa-circle-info me-2 text-muted"></i>Comment utiliser votre solde</h6>
+                        <ul class="small text-muted mb-0 ps-3">
+                            <li>Votre solde se convertit en <strong>remise</strong> sur un futur achat, jusqu'à <strong>50%</strong> du montant de cet achat</li>
+                            <li>Non convertible en espèces, non transférable à un autre client</li>
+                            <li>Valable <strong>12 mois</strong> à partir de chaque crédit</li>
+                        </ul>
                     </div>
                 </div>
 
@@ -265,10 +305,59 @@ if ($customer) {
         </div>
     </main>
 
-    <footer class="border-top">
-        <div class="container text-center py-2">
-            <p class="mb-1 fw-bold text-white">JEMEA PRODUCTS</p>
-            <p class="small mb-0 text-white-50">&copy; 2026 Jemea. Tous droits réservés. Produit local, impact global.</p>
+   <!-- FOOTER -->
+    <footer>
+        <div class="upper-footer" style="background-color: rgb(0,60,10);">
+            <div class="container">
+                <div class="row">
+                    <div class="col-lg-12"><hr style="border-color: rgba(255,255,255,0.15);" /></div>
+                </div>
+            </div>
+            <div class="container">
+                <div class="row pt-5 pb-5">
+                    <div class="col-md-6 col-xs-12 sm-mb-3">
+                        <h3 class="text-white mb-3">À propos</h3>
+                        <p class="text-white font-xssss lh-26">
+                            Jemea est une marque familiale qui propose des produits frais, directement de la ferme à votre table. Ancrés dans le respect de la terre, la qualité et le savoir-faire, nous cultivons et transformons nos ingrédients avec soin et intention. Chaque produit est récolté et préparé avec attention afin d'offrir fraîcheur, saveur et authenticité, pour une alimentation saine et digne de confiance.
+                        </p>
+                    </div>
+                    <div class="col-md-3 col-xs-12 sm-mb-3">
+                        <h3 class="text-white mb-3">Contact</h3>
+                        <p class="text-white font-xssss lh-26">
+                            +237 694 992 229 <br/>
+                            +237 677 090 155 <br/>
+                            3 Rue Dorot, Lobe, Bekoko Littoral.
+                        </p>
+                    </div>
+                    <div class="col-md-3 col-xs-12 sm-mb-3">
+                        <p class="font-xssss">
+                            <strong style="color: #ffffff; font-weight: 600;">Condition de paiement :Momo 677090155 ou OM 694994229</strong>
+                        </p>
+                        <br>
+                        <p>
+                            <img src="assets/image/momo.jpg" width="50" alt="Momo" />
+                            &nbsp;&nbsp;&nbsp;&nbsp;
+                            <img src="assets/image/om.png" width="50" alt="OM" />
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="lower-footer pb-3 pt-3" style="background-color: rgb(0,40,7); border-top: 1px solid rgba(255,255,255,0.15);">
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-6 text-center text-sm-start xs-mb-3">
+                        <p class="fw-500 font-xssss mb-0" style="color: rgba(255,255,255,0.6);">&copy; Copyright <?php echo date('Y'); ?> Jemea Products, Jojo's Farms. All rights reserved.</p>
+                    </div>
+                    <div class="col-md-6 text-center text-sm-end">
+                        <ul class="list-inline m-0">
+                            <li class="list-inline-item"><a href="https://www.facebook.com/share/1GgEFeg6zd/?mibextid=wwXIfr" target="_blank"><i class="fa-brands fa-facebook text-white"></i></a></li>
+                            <li class="list-inline-item"><a href="https://www.instagram.com/jemeaproducts?igsh=cnd3am9maXRzZ29s" target="_blank"><i class="fa-brands fa-instagram text-white"></i></a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
         </div>
     </footer>
 

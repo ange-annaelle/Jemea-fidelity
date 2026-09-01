@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jemea Loyalty - Créer ma Carte</title>
@@ -85,11 +86,59 @@
         </div>
     </main>
 
-    <!-- FOOTER -->
-    <footer class="border-top">
-        <div class="container text-center py-2">
-            <p class="mb-1 fw-bold text-white">JEMEA PRODUCTS</p>
-            <p class="small mb-0 text-white-50">&copy; 2026 Jemea. Tous droits réservés. Produit local, impact global.</p>
+   <!-- FOOTER -->
+    <footer>
+        <div class="upper-footer" style="background-color: rgb(0,60,10);">
+            <div class="container">
+                <div class="row">
+                    <div class="col-lg-12"><hr style="border-color: rgba(255,255,255,0.15);" /></div>
+                </div>
+            </div>
+            <div class="container">
+                <div class="row pt-5 pb-5">
+                    <div class="col-md-6 col-xs-12 sm-mb-3">
+                        <h3 class="text-white mb-3">À propos</h3>
+                        <p class="text-white font-xssss lh-26">
+                            Jemea est une marque familiale qui propose des produits frais, directement de la ferme à votre table. Ancrés dans le respect de la terre, la qualité et le savoir-faire, nous cultivons et transformons nos ingrédients avec soin et intention. Chaque produit est récolté et préparé avec attention afin d'offrir fraîcheur, saveur et authenticité, pour une alimentation saine et digne de confiance.
+                        </p>
+                    </div>
+                    <div class="col-md-3 col-xs-12 sm-mb-3">
+                        <h3 class="text-white mb-3">Contact</h3>
+                        <p class="text-white font-xssss lh-26">
+                            +237 694 992 229 <br/>
+                            +237 677 090 155 <br/>
+                            3 Rue Dorot, Lobe, Bekoko Littoral.
+                        </p>
+                    </div>
+                    <div class="col-md-3 col-xs-12 sm-mb-3">
+                        <p class="font-xssss">
+                            <strong style="color: #ffffff; font-weight: 600;">Condition de paiement :Momo 677090155 ou OM 694994229</strong>
+                        </p>
+                        <br>
+                        <p>
+                            <img src="assets/image/momo.jpg" width="50" alt="Momo" />
+                            &nbsp;&nbsp;&nbsp;&nbsp;
+                            <img src="assets/image/om.png" width="50" alt="OM" />
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="lower-footer pb-3 pt-3" style="background-color: rgb(0,40,7); border-top: 1px solid rgba(255,255,255,0.15);">
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-6 text-center text-sm-start xs-mb-3">
+                        <p class="fw-500 font-xssss mb-0" style="color: rgba(255,255,255,0.6);">&copy; Copyright <?php echo date('Y'); ?> Jemea Products, Jojo's Farms. All rights reserved.</p>
+                    </div>
+                    <div class="col-md-6 text-center text-sm-end">
+                        <ul class="list-inline m-0">
+                            <li class="list-inline-item"><a href="https://www.facebook.com/share/1GgEFeg6zd/?mibextid=wwXIfr" target="_blank"><i class="fa-brands fa-facebook text-white"></i></a></li>
+                            <li class="list-inline-item"><a href="https://www.instagram.com/jemeaproducts?igsh=cnd3am9maXRzZ29s" target="_blank"><i class="fa-brands fa-instagram text-white"></i></a></li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
         </div>
     </footer>
 

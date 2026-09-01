@@ -19,7 +19,7 @@ try {
     
     // 2. Récupération des déclarations en attente avec les infos du client associé
     $stmt = $pdo->query("
-        SELECT pd.id AS declaration_id, pd.created_at, c.id AS customer_id, c.fullname, c.phone, c.points_balance 
+        SELECT pd.id AS declaration_id, pd.created_at, pd.amount, c.id AS customer_id, c.fullname, c.phone 
         FROM purchase_declarations pd
         JOIN customers c ON pd.customer_id = c.id
         WHERE pd.status = 'pending'
@@ -35,6 +35,7 @@ try {
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+    <link rel="icon" type="image/x-icon" href="favicon.ico">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard Admin - Jemea Loyalty</title>
@@ -64,6 +65,8 @@ try {
                 <i class="fa-solid fa-gauge-high text-success"></i> Jemea BackOffice
             </span>
             <div class="d-flex align-items-center gap-3">
+                <a href="add-deposit.php" class="btn btn-outline-light btn-sm rounded-pill px-3"><i class="fa-solid fa-mobile-screen-button me-1"></i> Dépôt Mobile Money</a>
+                <a href="apply-discount.php" class="btn btn-outline-light btn-sm rounded-pill px-3"><i class="fa-solid fa-tags me-1"></i> Appliquer une remise</a>
                 <span class="small text-white-50"><i class="fa-solid fa-user me-1"></i> <?php echo htmlspecialchars($_SESSION['admin_name']); ?></span>
                 <a href="logout.php" class="btn btn-outline-light btn-sm rounded-pill px-3"><i class="fa-solid fa-power-off"></i></a>
             </div>
@@ -124,7 +127,7 @@ try {
                             <tr>
                                 <th>Client</th>
                                 <th>Téléphone</th>
-                                <th>Solde Actuel</th>
+                                <th>Montant déclaré</th>
                                 <th>Date de demande</th>
                                 <th class="text-end">Actions</th>
                             </tr>
@@ -139,7 +142,7 @@ try {
                                     <td><i class="fa-solid fa-phone me-1 text-muted small"></i> +237 <?php echo htmlspecialchars($dec['phone']); ?></td>
                                     <td>
                                         <span class="badge bg-light text-dark border px-2.5 py-1.5 fw-bold">
-                                            <i class="fa-solid fa-star text-warning me-1"></i> <?php echo $dec['points_balance']; ?> pts
+                                            <i class="fa-solid fa-coins text-warning me-1"></i> <?php echo number_format($dec['amount'], 0, ',', ' '); ?> FCFA
                                         </span>
                                     </td>
                                     <td class="small text-muted">
